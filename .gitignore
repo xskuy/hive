@@ -21,6 +21,9 @@
 # misc
 .DS_Store
 *.pem
+.agents/
+.claude/
+skills-lock.json
 
 # debug
 npm-debug.log*
@@ -30,6 +33,17 @@ pnpm-debug.log*
 
 # env files
 .env*.local
+agents/.env
+backend/.env
+
+# python
+agents/.venv/
+backend/.venv/
+.venv/
+.pytest_cache/
+__pycache__/
+*.pyc
+backend/alembic_test.db
 
 # typescript
 *.tsbuildinfo

@@ -1,0 +1,100 @@
+"use client"
+
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+
+import type { ScanRunSummary } from "@/features/market-sentinel/market-sentinel.types"
+
+type RunSummaryCardProps = {
+  lastRun: ScanRunSummary | null
+}
+
+function formatDate(value: string | null) {
+  if (!value) return "Still running"
+  return new Date(value).toLocaleString()
+}
+
+// Show the latest scan outcome without mixing formatting logic into the page.
+export function RunSummaryCard({ lastRun }: RunSummaryCardProps) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Latest run</CardTitle>
+        <CardDescription>
+          {lastRun
+            ? "Summary of the most recent scan triggered from this session."
+            : "Run the first scan to capture a summary here."}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {lastRun ? (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-3xl border p-4">
+              <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                Status
+              </p>
+              <p className="mt-2 font-medium capitalize">{lastRun.status}</p>
+            </div>
+            <div className="rounded-3xl border p-4">
+              <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                Universe
+              </p>
+              <p className="mt-2 font-medium">{lastRun.universe_size} tickers</p>
+            </div>
+            <div className="rounded-3xl border p-4">
+              <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                Anomalies
+              </p>
+              <p className="mt-2 font-medium">{lastRun.anomalies_found}</p>
+            </div>
+            <div className="rounded-3xl border p-4">
+              <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                Candidates
+              </p>
+              <p className="mt-2 font-medium">{lastRun.threshold_candidates}</p>
+            </div>
+            <div className="rounded-3xl border p-4">
+              <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                Alerts
+              </p>
+              <p className="mt-2 font-medium">{lastRun.alerts_created}</p>
+            </div>
+            <div className="rounded-3xl border p-4">
+              <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                Noise
+              </p>
+              <p className="mt-2 font-medium">{lastRun.noise_discarded}</p>
+            </div>
+            <div className="rounded-3xl border p-4">
+              <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                Cooldown
+              </p>
+              <p className="mt-2 font-medium">{lastRun.cooldown_suppressed}</p>
+            </div>
+            <div className="rounded-3xl border p-4">
+              <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                Failures
+              </p>
+              <p className="mt-2 font-medium">{lastRun.failed_tickers}</p>
+            </div>
+            <div className="rounded-3xl border p-4 sm:col-span-2 lg:col-span-2">
+              <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                Finished at
+              </p>
+              <p className="mt-2 font-medium">{formatDate(lastRun.finished_at)}</p>
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-3xl border border-dashed p-6 text-sm text-muted-foreground">
+            No scan has been executed from this page yet.
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
