@@ -35,7 +35,7 @@ def run_scan(service: MarketSentinelService = Depends(get_service)) -> RunScanRe
 
 @router.get("/alerts", response_model=AlertListResponse)
 def list_alerts(
-    limit: int = Query(default=20, ge=1, le=100),
+    limit: int = Query(default=200, ge=1, le=200),
     ticker: str | None = None,
     event_type: str | None = None,
     has_news_support: bool | None = None,

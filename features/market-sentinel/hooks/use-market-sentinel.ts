@@ -222,11 +222,29 @@ export function useMarketSentinel({
 
     try {
       const response = await runMarketSentinelScan()
+      const nextAlerts = response.alerts
+
+      alertsRef.current = nextAlerts
 
       startTransition(() => {
         setLastRun(response.scan_run)
+        setAlerts(nextAlerts)
       })
-      await refreshAlerts()
+
+      if (nextAlerts[0]) {
+        await loadAlertDetail(nextAlerts[0].id)
+      } else {
+        activeDetailController.current?.abort()
+        activeDetailController.current = null
+        activeDetailRequestId.current += 1
+        setIsDetailLoading(false)
+        startTransition(() => {
+          setSelectedAlertId(null)
+          setSelectedAlert(null)
+        })
+      }
+
+      setState("idle")
     } catch (runError) {
       setState("error")
       setIsDetailLoading(false)
@@ -236,7 +254,7 @@ export function useMarketSentinel({
           : "Failed to run the Market Sentinel scan."
       )
     }
-  }, [refreshAlerts])
+  }, [loadAlertDetail])
 
   useEffect(() => {
     void refreshServiceStatus()
