@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
+import { ClientDateTime } from "@/features/market-sentinel/components/ClientDateTime"
 import { PriceChart } from "@/features/market-sentinel/components/PriceChart"
 
 import type { MarketAlertDetail } from "@/features/market-sentinel/market-sentinel.types"
@@ -164,9 +165,8 @@ export function AlertDetail({ alert, isLoading }: AlertDetailProps) {
                   <p className="font-medium">{item.title}</p>
                   <p className="mt-2 text-sm text-muted-foreground">
                     {item.source}
-                    {item.published_at
-                      ? ` • ${new Date(item.published_at).toLocaleString()}`
-                      : ""}
+                    {item.published_at ? " • " : ""}
+                    <ClientDateTime value={item.published_at} emptyLabel="" />
                   </p>
                 </a>
               ))}

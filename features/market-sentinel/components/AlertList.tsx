@@ -8,6 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { ClientDateTime } from "@/features/market-sentinel/components/ClientDateTime"
 import { cn } from "@/lib/utils"
 
 import type { MarketAlertListItem } from "@/features/market-sentinel/market-sentinel.types"
@@ -71,7 +72,7 @@ export function AlertList({
 
               <div className="flex items-center justify-between text-xs text-muted-foreground">
                 <span>Confidence {Math.round(alert.confidence_score * 100)}%</span>
-                <span>{new Date(alert.created_at).toLocaleString()}</span>
+                <ClientDateTime value={alert.created_at} />
               </div>
             </button>
           ))

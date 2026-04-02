@@ -1,5 +1,6 @@
 "use client"
 
+import { ClientDateTime } from "@/features/market-sentinel/components/ClientDateTime"
 import {
   Card,
   CardContent,
@@ -12,11 +13,6 @@ import type { ScanRunSummary } from "@/features/market-sentinel/market-sentinel.
 
 type RunSummaryCardProps = {
   lastRun: ScanRunSummary | null
-}
-
-function formatDate(value: string | null) {
-  if (!value) return "Still running"
-  return new Date(value).toLocaleString()
 }
 
 // Show the latest scan outcome without mixing formatting logic into the page.
@@ -86,7 +82,9 @@ export function RunSummaryCard({ lastRun }: RunSummaryCardProps) {
               <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
                 Finished at
               </p>
-              <p className="mt-2 font-medium">{formatDate(lastRun.finished_at)}</p>
+              <p className="mt-2 font-medium">
+                <ClientDateTime value={lastRun.finished_at} />
+              </p>
             </div>
           </div>
         ) : (
