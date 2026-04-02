@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Iterable, Protocol
 
 
 @dataclass(frozen=True)
@@ -23,6 +24,15 @@ class MarketSignal:
     volume: float
     volume_baseline: float
     volume_ratio: float
+
+
+class MarketDataProvider(Protocol):
+    """Contract implemented by market-data providers used by the scan service."""
+
+    def fetch_signals(
+        self,
+        universe: Iterable[UniverseTicker],
+    ) -> tuple[list[MarketSignal], list[str]]: ...
 
 
 @dataclass(frozen=True)

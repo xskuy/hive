@@ -103,6 +103,8 @@ class MarketSentinelConfigResponse(BaseModel):
     enabled: bool
     universe_path: str
     configured_universe_size: int
+    market_data_provider: str
+    market_data_fallback_provider: str | None = None
     price_move_threshold: float
     volume_ratio_threshold: float
     news_lookback_hours: int
