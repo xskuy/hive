@@ -16,6 +16,13 @@ type SettingsSnapshotCardProps = {
 
 const SETTING_LABELS = [
   {
+    label: "Market data",
+    getValue: (config: MarketSentinelConfig) =>
+      config.market_data_fallback_provider
+        ? `${config.market_data_provider} -> ${config.market_data_fallback_provider}`
+        : config.market_data_provider,
+  },
+  {
     label: "Price move",
     getValue: (config: MarketSentinelConfig) => `${config.price_move_threshold.toFixed(1)}%`,
   },

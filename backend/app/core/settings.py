@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -28,6 +29,9 @@ class Settings(BaseSettings):
     market_sentinel_news_lookback_hours: int = 6
     market_sentinel_max_news_items: int = 3
     market_sentinel_request_timeout_seconds: float = 20.0
+    market_sentinel_market_data_provider: Literal["yfinance", "polygon"] = "yfinance"
+    market_sentinel_polygon_api_key: str = ""
+    market_sentinel_polygon_base_url: str = "https://api.polygon.io"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

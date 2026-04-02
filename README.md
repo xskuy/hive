@@ -12,7 +12,7 @@ and a LangGraph-powered agents backend.
 | Agents backend | Python, FastAPI, LangGraph, LangChain, MCP |
 | Database | PostgreSQL |
 | Cache / Queues | Redis |
-| Market data | yfinance, Tavily |
+| Market data | yfinance, Polygon (optional), Tavily |
 
 ## Project structure
 
@@ -70,7 +70,10 @@ cp agents/.env.example agents/.env
 ```
 
 Fill in the API keys you need for your flows, especially `OPENAI_API_KEY`,
-`ANTHROPIC_API_KEY`, and `TAVILY_API_KEY`.
+`ANTHROPIC_API_KEY`, and `TAVILY_API_KEY`. If you want Market Sentinel to use
+Polygon as the primary market-data source, also set
+`MARKET_SENTINEL_MARKET_DATA_PROVIDER=polygon` and `MARKET_SENTINEL_POLYGON_API_KEY`
+inside `backend/.env`.
 
 3. Start everything:
 

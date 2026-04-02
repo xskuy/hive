@@ -218,3 +218,22 @@ def test_run_scan_applies_cooldown_dedup(monkeypatch) -> None:
     assert first_response.scan_run.alerts_created == 1
     assert second_response.scan_run.alerts_created == 0
     assert second_response.scan_run.cooldown_suppressed == 1
+
+
+def test_get_config_exposes_effective_market_data_provider(monkeypatch) -> None:
+    session = build_session()
+    monkeypatch.setattr("app.features.market_sentinel.service.settings.market_sentinel_enabled", True)
+    monkeypatch.setattr(
+        "app.features.market_sentinel.service.settings.market_sentinel_market_data_provider",
+        "polygon",
+    )
+    monkeypatch.setattr(
+        "app.features.market_sentinel.service.settings.market_sentinel_polygon_api_key",
+        "",
+    )
+
+    service = MarketSentinelService(session)
+    config = service.get_config()
+
+    assert config.market_data_provider == "yfinance"
+    assert config.market_data_fallback_provider is None

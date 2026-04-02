@@ -10,7 +10,7 @@ from app.core.settings import settings
 from app.features.market_sentinel.providers.agents_client import (
     MarketSentinelAgentsClient,
 )
-from app.features.market_sentinel.providers.market_data import YFinanceMarketDataProvider
+from app.features.market_sentinel.providers.market_data import build_market_data_provider
 from app.features.market_sentinel.providers.news_data import TavilyNewsProvider
 from app.features.market_sentinel.repository import MarketSentinelRepository
 from app.features.market_sentinel.rules import classify_event, compute_confidence
@@ -27,7 +27,7 @@ from app.features.market_sentinel.schemas import (
     ScanRunListResponse,
     ScanRunSummary,
 )
-from app.features.market_sentinel.types import ExplanationPayload, UniverseTicker
+from app.features.market_sentinel.types import ExplanationPayload, MarketDataProvider, UniverseTicker
 from app.features.market_sentinel.universe import load_universe
 
 
@@ -42,13 +42,27 @@ class MarketSentinelService:
         db: Session,
         *,
         repository: MarketSentinelRepository | None = None,
-        market_data_provider: YFinanceMarketDataProvider | None = None,
+        market_data_provider: MarketDataProvider | None = None,
         news_provider: TavilyNewsProvider | None = None,
         agents_client: MarketSentinelAgentsClient | None = None,
     ) -> None:
         self.db = db
         self.repository = repository or MarketSentinelRepository()
-        self.market_data_provider = market_data_provider or YFinanceMarketDataProvider()
+        self.market_data_provider_name = "custom"
+        self.market_data_fallback_provider_name: str | None = None
+        if market_data_provider is None:
+            (
+                self.market_data_provider,
+                self.market_data_provider_name,
+                self.market_data_fallback_provider_name,
+            ) = build_market_data_provider(
+                provider_name=settings.market_sentinel_market_data_provider,
+                polygon_api_key=settings.market_sentinel_polygon_api_key,
+                polygon_base_url=settings.market_sentinel_polygon_base_url,
+                timeout_seconds=settings.market_sentinel_request_timeout_seconds,
+            )
+        else:
+            self.market_data_provider = market_data_provider
         self.news_provider = news_provider or TavilyNewsProvider(
             api_key=settings.tavily_api_key,
             timeout_seconds=settings.market_sentinel_request_timeout_seconds,
@@ -274,6 +288,8 @@ class MarketSentinelService:
             enabled=settings.market_sentinel_enabled,
             universe_path=settings.market_sentinel_universe_path,
             configured_universe_size=configured_universe_size,
+            market_data_provider=self.market_data_provider_name,
+            market_data_fallback_provider=self.market_data_fallback_provider_name,
             price_move_threshold=runtime_config.price_move_threshold,
             volume_ratio_threshold=runtime_config.volume_ratio_threshold,
             news_lookback_hours=runtime_config.news_lookback_hours,

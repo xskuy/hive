@@ -76,6 +76,8 @@ export interface MarketSentinelConfig {
   enabled: boolean
   universe_path: string
   configured_universe_size: number
+  market_data_provider: string
+  market_data_fallback_provider: string | null
   price_move_threshold: number
   volume_ratio_threshold: number
   news_lookback_hours: number
