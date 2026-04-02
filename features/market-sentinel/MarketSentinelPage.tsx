@@ -1,6 +1,8 @@
 "use client"
 
-import { AlertFiltersToolbar } from "@/features/market-sentinel/components/AlertFiltersToolbar"
+import dynamic from "next/dynamic"
+
+import { Skeleton } from "@/components/ui/skeleton"
 import { AlertDetail } from "@/features/market-sentinel/components/AlertDetail"
 import { AlertList } from "@/features/market-sentinel/components/AlertList"
 import { ModuleOverview } from "@/features/market-sentinel/components/ModuleOverview"
@@ -18,6 +20,47 @@ type MarketSentinelPageProps = {
   initialData?: MarketSentinelInitialData | null
   initialFilters?: MarketSentinelAlertFilters
 }
+
+function AlertFiltersToolbarFallback() {
+  return (
+    <section className="rounded-[1.8rem] border border-border/60 bg-card/65 p-5">
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-2">
+            <Skeleton className="h-3 w-20 rounded-full" />
+            <Skeleton className="h-4 w-72 max-w-full rounded-full" />
+          </div>
+          <Skeleton className="h-8 w-20 rounded-full" />
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-[minmax(0,1.35fr)_repeat(5,minmax(0,1fr))]">
+          <Skeleton className="h-11 rounded-[1.25rem]" />
+          <Skeleton className="h-11 rounded-[1.25rem]" />
+          <Skeleton className="h-11 rounded-[1.25rem]" />
+          <Skeleton className="h-11 rounded-[1.25rem]" />
+          <Skeleton className="h-11 rounded-[1.25rem]" />
+          <Skeleton className="h-11 rounded-[1.25rem]" />
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Skeleton className="h-8 w-36 rounded-full" />
+          <Skeleton className="h-4 w-80 max-w-full rounded-full" />
+        </div>
+      </div>
+    </section>
+  )
+}
+
+const AlertFiltersToolbar = dynamic(
+  () =>
+    import("@/features/market-sentinel/components/AlertFiltersToolbar").then(
+      (module) => module.AlertFiltersToolbar
+    ),
+  {
+    ssr: false,
+    loading: AlertFiltersToolbarFallback,
+  }
+)
 
 export function MarketSentinelPage({
   initialData = null,
