@@ -7,6 +7,7 @@ import { AlertDetail } from "@/features/market-sentinel/components/AlertDetail"
 import { AlertList } from "@/features/market-sentinel/components/AlertList"
 import { ModuleOverview } from "@/features/market-sentinel/components/ModuleOverview"
 import { RunScanButton } from "@/features/market-sentinel/components/RunScanButton"
+import { ScanActivityBanner } from "@/features/market-sentinel/components/ScanActivityBanner"
 import { RunSummaryCard } from "@/features/market-sentinel/components/RunSummaryCard"
 import { SystemStatusCard } from "@/features/market-sentinel/components/SystemStatusCard"
 import { DEFAULT_ALERT_FILTERS } from "@/features/market-sentinel/market-sentinel.constants"
@@ -110,6 +111,14 @@ export function MarketSentinelPage({
           {error}
         </p>
       )}
+
+      {isRunning ? (
+        <ScanActivityBanner
+          runId={lastRun?.id}
+          startedAt={lastRun?.started_at}
+          universeSize={lastRun?.universe_size ?? 0}
+        />
+      ) : null}
 
       <AlertFiltersToolbar
         filters={alertFilters}

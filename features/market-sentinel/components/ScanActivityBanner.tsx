@@ -1,5 +1,7 @@
 "use client"
 
+import { ClientDateTime } from "@/features/market-sentinel/components/ClientDateTime"
+
 const SCAN_STAGES = [
   {
     label: "Price",
@@ -17,10 +19,14 @@ const SCAN_STAGES = [
 
 type ScanActivityBannerProps = {
   universeSize: number
+  runId?: number | null
+  startedAt?: string | null
 }
 
 export function ScanActivityBanner({
   universeSize,
+  runId = null,
+  startedAt = null,
 }: ScanActivityBannerProps) {
   return (
     <section
@@ -47,6 +53,17 @@ export function ScanActivityBanner({
               The featured signal and run summary refresh as soon as the backend
               persists the result of this pass.
             </p>
+            {runId ? (
+              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                Run #{runId}
+                {startedAt ? (
+                  <>
+                    {" "}
+                    started <ClientDateTime value={startedAt} emptyLabel="" />
+                  </>
+                ) : null}
+              </p>
+            ) : null}
           </div>
         </div>
 

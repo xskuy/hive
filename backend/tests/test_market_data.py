@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import httpx
+
 from app.features.market_sentinel.providers.market_data import (
     FallbackMarketDataProvider,
     PolygonAggregateBar,
+    PolygonRateLimitError,
     PolygonMarketDataProvider,
     YFinanceMarketDataProvider,
     build_market_data_provider,
@@ -85,6 +88,44 @@ def test_fallback_market_data_provider_uses_secondary_for_failed_tickers() -> No
 
     assert [signal.ticker for signal in signals] == ["AAPL", "MSFT"]
     assert failures == []
+
+
+def test_polygon_market_data_provider_sanitizes_rate_limit_errors(monkeypatch) -> None:
+    provider = PolygonMarketDataProvider(api_key="test-key", max_workers=1)
+
+    class StubResponse:
+        status_code = 429
+
+        def raise_for_status(self) -> None:
+            request = httpx.Request("GET", "https://api.polygon.io/v2/aggs/ticker/AAPL")
+            response = httpx.Response(429, request=request)
+            raise httpx.HTTPStatusError("rate limited", request=request, response=response)
+
+        def json(self) -> dict[str, object]:
+            return {}
+
+    class StubClient:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        def __enter__(self) -> "StubClient":
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            return None
+
+        def get(self, url: str, params: dict[str, object]) -> StubResponse:
+            return StubResponse()
+
+    monkeypatch.setattr(httpx, "Client", StubClient)
+
+    try:
+        provider._fetch_aggregates("AAPL")
+    except PolygonRateLimitError as exc:
+        assert "AAPL" in str(exc)
+        assert "apiKey" not in str(exc)
+    else:
+        raise AssertionError("Expected PolygonRateLimitError")
 
 
 def test_build_market_data_provider_uses_yfinance_when_polygon_key_missing() -> None:

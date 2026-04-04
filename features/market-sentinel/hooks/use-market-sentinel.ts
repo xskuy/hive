@@ -13,6 +13,7 @@ import {
 import {
   getMarketSentinelAlert,
   listMarketSentinelAlerts,
+  listMarketSentinelRuns,
   runMarketSentinelScan,
 } from "@/features/market-sentinel/market-sentinel.api"
 import { DEFAULT_ALERT_FILTERS } from "@/features/market-sentinel/market-sentinel.constants"
@@ -27,6 +28,7 @@ import { AGENTS_URL, BACKEND_URL } from "@/config/env"
 
 type ViewState = "idle" | "loading" | "running" | "error"
 type ServiceState = "checking" | "online" | "offline"
+const ACTIVE_RUN_POLL_INTERVAL_MS = 5_000
 
 async function checkHealth(url: string) {
   const response = await fetch(url, { cache: "no-store" })
@@ -68,6 +70,7 @@ export function useMarketSentinel({
   const alertFiltersRef = useRef<MarketSentinelAlertFilters>(initialFilters)
   const activeDetailRequestId = useRef(0)
   const activeDetailController = useRef<AbortController | null>(null)
+  const lastRunRef = useRef<ScanRunSummary | null>(initialData?.lastRun ?? null)
   const detailCache = useRef(
     new Map<number, MarketAlertDetail>(
       initialData?.selectedAlert
@@ -83,6 +86,10 @@ export function useMarketSentinel({
   useEffect(() => {
     alertFiltersRef.current = alertFilters
   }, [alertFilters])
+
+  useEffect(() => {
+    lastRunRef.current = lastRun
+  }, [lastRun])
 
   const deferredTicker = useDeferredValue(alertFilters.ticker ?? "")
   const resolvedFilters = useMemo<MarketSentinelAlertFilters>(
@@ -280,6 +287,52 @@ export function useMarketSentinel({
     void refreshAlerts()
   }, [refreshAlerts, resolvedFilters])
 
+  useEffect(() => {
+    if (lastRun?.status !== "running") {
+      return
+    }
+
+    let disposed = false
+
+    const pollLatestRun = async () => {
+      try {
+        const response = await listMarketSentinelRuns(1)
+        if (disposed) {
+          return
+        }
+
+        const nextRun = response.items[0] ?? null
+        const previousRun = lastRunRef.current
+
+        lastRunRef.current = nextRun
+        startTransition(() => {
+          setLastRun(nextRun)
+        })
+
+        if (
+          previousRun?.status === "running" &&
+          nextRun?.status !== "running"
+        ) {
+          await refreshAlerts()
+        }
+      } catch {
+        // Ignore transient polling failures and keep the last known run state.
+      }
+    }
+
+    const intervalId = window.setInterval(() => {
+      void pollLatestRun()
+    }, ACTIVE_RUN_POLL_INTERVAL_MS)
+    void pollLatestRun()
+
+    return () => {
+      disposed = true
+      window.clearInterval(intervalId)
+    }
+  }, [lastRun?.status, refreshAlerts])
+
+  const isRunning = state === "running" || lastRun?.status === "running"
+
   return {
     agentsStatus,
     alerts,
@@ -287,7 +340,7 @@ export function useMarketSentinel({
     backendStatus,
     error,
     isDetailLoading,
-    isRunning: state === "running",
+    isRunning,
     lastRun,
     refreshAlerts,
     refreshServiceStatus,
