@@ -55,7 +55,7 @@ function FilterDropdown({
           type="button"
           variant="outline"
           className={cn(
-            "h-11 w-full justify-between rounded-[1.25rem] border-border/60 bg-background/75 px-4 text-left text-sm font-medium text-foreground shadow-none hover:bg-muted/30",
+            "h-11 w-full justify-between rounded-[1.25rem] border-white/[0.06] bg-white/[0.03] px-4 text-left text-sm font-medium text-foreground shadow-none hover:bg-white/[0.05]",
             className
           )}
         >
@@ -90,7 +90,7 @@ export function AlertFiltersToolbar({
   const sortValue = `${filters.sort_by ?? "created_at"}:${filters.sort_order ?? "desc"}`
 
   return (
-    <section className="rounded-[1.8rem] border border-border/60 bg-card/65 p-5">
+    <section className="rounded-[1.8rem] border border-white/[0.07] bg-zinc-950 p-5">
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
           <div>
@@ -114,7 +114,7 @@ export function AlertFiltersToolbar({
 
         <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-[minmax(0,1.35fr)_repeat(5,minmax(0,1fr))]">
           <Input
-            className="h-11 rounded-[1.25rem] border border-border/60 bg-background/75 px-4"
+            className="h-11 rounded-[1.25rem] border border-white/[0.06] bg-white/[0.03] px-4"
             placeholder="Search ticker or company"
             value={filters.ticker ?? ""}
             onChange={(event) =>

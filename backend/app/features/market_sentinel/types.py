@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Iterable, Protocol
+from typing import Iterable, Literal, Protocol
+
+AlertStatus = Literal["new", "investigating", "confirmed", "watching", "resolved"]
 
 
 @dataclass(frozen=True)
@@ -64,3 +66,17 @@ class AgentExplanationResult:
     por_que_importa: str
     confidence_score: float
     is_noise: bool
+
+
+class AgentExplanationProvider(Protocol):
+    """Contract implemented by services that explain and validate candidate events."""
+
+    def explain_event(
+        self,
+        *,
+        signal: MarketSignal,
+        news_items: list[NewsSearchItem],
+        event_type: str,
+        baseline_confidence_score: float,
+        has_news_support: bool,
+    ) -> AgentExplanationResult: ...

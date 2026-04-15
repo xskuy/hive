@@ -33,7 +33,7 @@ export function ScanActivityBanner({
       aria-live="polite"
       aria-busy="true"
       role="status"
-      className="relative overflow-hidden rounded-[1.7rem] border border-primary/25 bg-background/75 p-4"
+      className="relative overflow-hidden rounded-[1.7rem] border border-primary/25 bg-zinc-950 p-4"
     >
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(157,255,0,0.2),transparent_40%),linear-gradient(135deg,rgba(157,255,0,0.1),transparent_62%)]" />
       <div className="relative flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
@@ -71,7 +71,7 @@ export function ScanActivityBanner({
           {SCAN_STAGES.map((stage, index) => (
             <div
               key={stage.label}
-              className="rounded-[1.2rem] border border-border/60 bg-background/70 p-3"
+              className="rounded-[1.2rem] border border-white/[0.06] bg-white/[0.02] p-3"
             >
               <div className="flex items-center gap-2">
                 <div className="relative flex size-2.5 shrink-0 items-center justify-center">

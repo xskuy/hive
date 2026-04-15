@@ -34,6 +34,8 @@ export interface MarketSnapshot {
   is_anomaly: boolean
 }
 
+export type AlertStatus = "new" | "investigating" | "confirmed" | "watching" | "resolved"
+
 export interface MarketAlertListItem {
   id: number
   scan_run_id: number
@@ -42,6 +44,8 @@ export interface MarketAlertListItem {
   event_type: string
   confidence_score: number
   has_news_support: boolean
+  status: AlertStatus
+  status_updated_at: string
   created_at: string
   que_paso: string
   posible_causa: string
@@ -85,6 +89,25 @@ export interface MarketSentinelConfig {
   alert_cooldown_hours: number
   request_timeout_seconds: number
   updated_at: string | null
+}
+
+export interface UpdateAlertStatusPayload {
+  status: AlertStatus
+  reason?: string
+}
+
+export interface AlertStatusTransition {
+  alert_id: number
+  ticker: string
+  company_name: string
+  current_status: AlertStatus
+  recommended_status: AlertStatus
+  reasoning: string
+  confidence: number
+}
+
+export interface AlertLifecycleEvaluationResponse {
+  transitions: AlertStatusTransition[]
 }
 
 export type AlertDateRange = "all" | "24h" | "7d" | "30d"

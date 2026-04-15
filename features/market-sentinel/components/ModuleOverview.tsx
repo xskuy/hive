@@ -16,7 +16,7 @@ const CAPABILITIES = [
 
 export function ModuleOverview() {
   return (
-    <Card>
+    <Card className="border-white/[0.07] bg-zinc-950">
       <CardHeader>
         <CardTitle>Pipeline</CardTitle>
         <CardDescription>
@@ -27,7 +27,7 @@ export function ModuleOverview() {
         {CAPABILITIES.map((item) => (
           <div
             key={item.label}
-            className="flex items-center gap-3 rounded-3xl border p-3"
+            className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-3"
           >
             <span className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground w-16 shrink-0">
               {item.label}

@@ -18,7 +18,10 @@ from app.features.market_sentinel.schemas import (
     AlertDetailResponse,
     AlertListItem,
     AlertListResponse,
+    AlertLifecycleEvaluationResponse,
+    AlertStatusTransition,
     MarketSentinelConfigResponse,
+    UpdateAlertStatusRequest,
     UpdateMarketSentinelConfigRequest,
     MarketSnapshotResponse,
     PriceHistoryResponse,
@@ -27,7 +30,12 @@ from app.features.market_sentinel.schemas import (
     ScanRunListResponse,
     ScanRunSummary,
 )
-from app.features.market_sentinel.types import ExplanationPayload, MarketDataProvider, UniverseTicker
+from app.features.market_sentinel.types import (
+    AgentExplanationProvider,
+    ExplanationPayload,
+    MarketDataProvider,
+    UniverseTicker,
+)
 from app.features.market_sentinel.universe import load_universe
 
 
@@ -44,7 +52,7 @@ class MarketSentinelService:
         repository: MarketSentinelRepository | None = None,
         market_data_provider: MarketDataProvider | None = None,
         news_provider: TavilyNewsProvider | None = None,
-        agents_client: MarketSentinelAgentsClient | None = None,
+        agents_client: AgentExplanationProvider | None = None,
     ) -> None:
         self.db = db
         self.repository = repository or MarketSentinelRepository()
@@ -197,7 +205,9 @@ class MarketSentinelService:
         current_alerts = self.repository.list_alerts_for_run(self.db, run_id=run.id)
 
         if current_run is None:
-            raise HTTPException(status_code=500, detail="The scan finished but the run could not be reloaded.")
+            raise HTTPException(
+                status_code=500, detail="The scan finished but the run could not be reloaded."
+            )
 
         return RunScanResponse(
             scan_run=ScanRunSummary.model_validate(current_run),
@@ -261,16 +271,24 @@ class MarketSentinelService:
             ],
         )
 
-    def get_price_history(self, *, ticker: str, period: str = "5d", interval: str = "1h") -> PriceHistoryResponse:
+    def get_price_history(
+        self, *, ticker: str, period: str = "5d", interval: str = "1h"
+    ) -> PriceHistoryResponse:
         """Fetch recent price history directly from yfinance."""
         import yfinance as yf
 
-        history = yf.Ticker(ticker).history(period=period, interval=interval, auto_adjust=False, actions=False)
+        history = yf.Ticker(ticker).history(
+            period=period, interval=interval, auto_adjust=False, actions=False
+        )
         if history.empty:
             raise HTTPException(status_code=404, detail=f"No price history for {ticker}")
 
         points = [
-            PricePoint(timestamp=ts.to_pydatetime(), close=round(float(row["Close"]), 2), volume=round(float(row["Volume"]), 2))
+            PricePoint(
+                timestamp=ts.to_pydatetime(),
+                close=round(float(row["Close"]), 2),
+                volume=round(float(row["Volume"]), 2),
+            )
             for ts, row in history.iterrows()
             if not (row["Close"] != row["Close"])  # skip NaN
         ]
@@ -312,6 +330,62 @@ class MarketSentinelService:
             self.db.refresh(runtime_config)
 
         return self.get_config()
+
+    def update_alert_status(
+        self,
+        *,
+        alert_id: int,
+        payload: UpdateAlertStatusRequest,
+    ) -> AlertListItem:
+        """Apply a manual status transition to a single alert."""
+        valid_statuses = {"new", "investigating", "confirmed", "watching", "resolved"}
+        if payload.status not in valid_statuses:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Invalid status '{payload.status}'. Must be one of: {', '.join(sorted(valid_statuses))}",
+            )
+        alert = self.repository.update_alert_status(
+            self.db,
+            alert_id=alert_id,
+            status=payload.status,
+        )
+        if alert is None:
+            raise HTTPException(status_code=404, detail="Alert not found.")
+        self.db.commit()
+        self.db.refresh(alert)
+        return AlertListItem.model_validate(alert)
+
+    def evaluate_alert_lifecycle(self) -> AlertLifecycleEvaluationResponse:
+        """Ask the agents service to auto-evaluate open alerts and apply recommended transitions."""
+        open_alerts = self.repository.list_open_alerts(self.db)
+        if not open_alerts:
+            return AlertLifecycleEvaluationResponse(transitions=[])
+
+        try:
+            result = self.agents_client.evaluate_alert_lifecycle(open_alerts=open_alerts)
+        except Exception:
+            logger.exception("Alert lifecycle evaluation failed; skipping auto-transitions.")
+            return AlertLifecycleEvaluationResponse(transitions=[])
+
+        applied: list[AlertStatusTransition] = []
+        for transition in result.transitions:
+            if transition.recommended_status != transition.current_status:
+                updated = self.repository.update_alert_status(
+                    self.db,
+                    alert_id=transition.alert_id,
+                    status=transition.recommended_status,
+                )
+                if updated is not None:
+                    applied.append(transition)
+
+        if applied:
+            self.db.commit()
+            logger.info(
+                "Alert lifecycle: applied %d auto-transitions.",
+                len(applied),
+            )
+
+        return AlertLifecycleEvaluationResponse(transitions=applied)
 
     def _ensure_scan_is_allowed(self) -> None:
         """Fail fast when the scan should not run in the current environment."""

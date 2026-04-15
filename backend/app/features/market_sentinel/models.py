@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -75,6 +75,8 @@ class Alert(Base):
     por_que_importa: Mapped[str] = mapped_column(Text)
     confidence_score: Mapped[float] = mapped_column(Float)
     has_news_support: Mapped[bool] = mapped_column(Boolean, default=False)
+    status: Mapped[str] = mapped_column(String(32), default="new", index=True)
+    status_updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, index=True)
 
     scan_run: Mapped["ScanRun"] = relationship(back_populates="alerts")

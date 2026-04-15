@@ -5,8 +5,9 @@ import dynamic from "next/dynamic"
 import { Skeleton } from "@/components/ui/skeleton"
 import { AlertDetail } from "@/features/market-sentinel/components/AlertDetail"
 import { AlertList } from "@/features/market-sentinel/components/AlertList"
+import { LifecycleAgentPanel } from "@/features/market-sentinel/components/LifecycleAgentPanel"
+import { MarketSentinelHero } from "@/features/market-sentinel/components/MarketSentinelHero"
 import { ModuleOverview } from "@/features/market-sentinel/components/ModuleOverview"
-import { RunScanButton } from "@/features/market-sentinel/components/RunScanButton"
 import { ScanActivityBanner } from "@/features/market-sentinel/components/ScanActivityBanner"
 import { RunSummaryCard } from "@/features/market-sentinel/components/RunSummaryCard"
 import { SystemStatusCard } from "@/features/market-sentinel/components/SystemStatusCard"
@@ -73,38 +74,29 @@ export function MarketSentinelPage({
     alertFilters,
     backendStatus,
     error,
+    evaluateLifecycle,
     isDetailLoading,
+    isEvaluatingLifecycle,
     isRunning,
     lastRun,
+    lifecycleResult,
     runScan,
     selectedAlert,
     selectedAlertId,
     setAlertFilters,
     selectAlert,
+    updateAlertStatus,
     state,
   } = useMarketSentinel({ initialData, initialFilters })
 
   return (
     <div className="space-y-6">
-      <section className="flex flex-col gap-5 rounded-[2rem] border border-border/60 bg-card/60 p-6 shadow-sm shadow-black/5 lg:flex-row lg:items-end lg:justify-between">
-        <div className="space-y-2">
-          <p className="text-[0.72rem] uppercase tracking-[0.34em] text-muted-foreground">
-            Alert Desk
-          </p>
-          <h2 className="font-heading text-2xl font-semibold tracking-tight">
-            Investigate persisted alerts without reloading the whole workflow.
-          </h2>
-          <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-            Browse the latest signal cards, open the enriched detail payload and
-            keep an eye on the supporting services while you triage anomalies.
-          </p>
-        </div>
-        <RunScanButton
-          disabled={state === "loading"}
-          isRunning={isRunning}
-          onRun={runScan}
-        />
-      </section>
+      <MarketSentinelHero
+        alertCount={alerts.length}
+        isRunning={isRunning}
+        disabled={state === "loading"}
+        onRun={runScan}
+      />
 
       {error && (
         <p className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
@@ -119,6 +111,13 @@ export function MarketSentinelPage({
           universeSize={lastRun?.universe_size ?? 0}
         />
       ) : null}
+
+      <LifecycleAgentPanel
+        disabled={isRunning || state === "loading"}
+        isEvaluating={isEvaluatingLifecycle}
+        result={lifecycleResult}
+        onEvaluate={evaluateLifecycle}
+      />
 
       <AlertFiltersToolbar
         filters={alertFilters}
@@ -135,6 +134,7 @@ export function MarketSentinelPage({
           key={selectedAlertId ?? "empty-alert"}
           alert={selectedAlert}
           isLoading={isDetailLoading}
+          onStatusChange={updateAlertStatus}
         />
       </section>
 

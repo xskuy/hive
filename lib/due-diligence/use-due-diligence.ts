@@ -1,5 +1,4 @@
 import { useState, useCallback, useMemo } from "react"
-import { AGENTS_URL } from "./constants"
 import { parseReportSections } from "./parse-report"
 import type { ParsedReport } from "./types"
 
@@ -8,6 +7,9 @@ export function useDueDiligence() {
   const [isRunning, setIsRunning] = useState(false)
   const [currentStep, setCurrentStep] = useState<string | null>(null)
   const [completedSteps, setCompletedSteps] = useState<string[]>([])
+  const [selectedRoute, setSelectedRoute] = useState<string | null>(null)
+  const [riskLevel, setRiskLevel] = useState<string | null>(null)
+  const [routingReason, setRoutingReason] = useState<string | null>(null)
   const [report, setReport] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [openSections, setOpenSections] = useState<string[]>([])
@@ -35,12 +37,15 @@ export function useDueDiligence() {
     setIsRunning(true)
     setCurrentStep(null)
     setCompletedSteps([])
+    setSelectedRoute(null)
+    setRiskLevel(null)
+    setRoutingReason(null)
     setReport(null)
     setError(null)
     setOpenSections([])
 
     try {
-      const response = await fetch(`${AGENTS_URL}/api/due-diligence/run`, {
+      const response = await fetch(`/api/due-diligence/run`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ company_name: companyName }),
@@ -81,6 +86,18 @@ export function useDueDiligence() {
                 }
               }
 
+              if (parsed.route) {
+                setSelectedRoute(parsed.route)
+              }
+
+              if (parsed.riskLevel) {
+                setRiskLevel(parsed.riskLevel)
+              }
+
+              if (parsed.routingReason) {
+                setRoutingReason(parsed.routingReason)
+              }
+
               if (parsed.report) {
                 setReport(parsed.report)
               }
@@ -108,6 +125,9 @@ export function useDueDiligence() {
     isRunning,
     currentStep,
     completedSteps,
+    selectedRoute,
+    riskLevel,
+    routingReason,
     report,
     error,
     openSections,

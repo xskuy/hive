@@ -65,6 +65,8 @@ class AlertListItem(BaseModel):
     event_type: str
     confidence_score: float
     has_news_support: bool
+    status: str
+    status_updated_at: datetime
     created_at: datetime
     que_paso: str
     posible_causa: str
@@ -112,6 +114,31 @@ class MarketSentinelConfigResponse(BaseModel):
     alert_cooldown_hours: int
     request_timeout_seconds: float
     updated_at: datetime | None = None
+
+
+class UpdateAlertStatusRequest(BaseModel):
+    """Status transition payload for the PATCH /alerts/{id}/status endpoint."""
+
+    status: str
+    reason: str | None = None
+
+
+class AlertStatusTransition(BaseModel):
+    """Result of an automated lifecycle evaluation for a single alert."""
+
+    alert_id: int
+    ticker: str
+    company_name: str
+    current_status: str
+    recommended_status: str
+    reasoning: str
+    confidence: float
+
+
+class AlertLifecycleEvaluationResponse(BaseModel):
+    """Response from the agents service lifecycle evaluation endpoint."""
+
+    transitions: list[AlertStatusTransition]
 
 
 class UpdateMarketSentinelConfigRequest(BaseModel):
