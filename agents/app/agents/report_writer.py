@@ -17,6 +17,10 @@ async def report_writer_node(state: dict) -> dict:
     research = "\n".join(state["research_data"])
     financial = "\n".join(state["financial_data"])
     risk = "\n".join(state["risk_data"])
+    deep_dive = "\n\n".join(state.get("deep_dive_data", []))
+    selected_route = state.get("selected_route", "report_writer")
+    overall_risk_level = state.get("overall_risk_level", "UNKNOWN")
+    routing_reason = state.get("routing_reason", "")
     writer({"step": "report_writer", "status": "started"})
 
     response = await llm.ainvoke(
@@ -33,6 +37,14 @@ FINANCIAL ANALYSIS:
 RISK ASSESSMENT:
 {risk}
 
+ROUTING DECISION:
+- route: {selected_route}
+- overall_risk_level: {overall_risk_level}
+- routing_reason: {routing_reason}
+
+SPECIALIZED FOLLOW-UP:
+{deep_dive or "No specialized deep dive was required."}
+
 Write the report in markdown with these sections:
 
 # Due Diligence Report: {company}
@@ -48,6 +60,9 @@ Write the report in markdown with these sections:
 
 ## Risk Assessment
 (Legal, reputational, financial, operational risks with severity)
+
+## Specialized Follow-Up
+(Only if a legal or enhanced analysis branch was executed. Summarize the extra findings briefly.)
 
 ## Key Findings
 (Bulleted list of most important discoveries)

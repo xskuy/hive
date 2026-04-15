@@ -81,7 +81,11 @@ export function MarketSentinelOverviewPage({
               </p>
             )}
             {isRunning ? (
-              <ScanActivityBanner universeSize={config.configured_universe_size} />
+              <ScanActivityBanner
+                runId={lastRun?.id}
+                startedAt={lastRun?.started_at}
+                universeSize={lastRun?.universe_size ?? config.configured_universe_size}
+              />
             ) : null}
           </CardHeader>
           <CardContent className="relative grid gap-4 md:grid-cols-[1.15fr_.85fr]">

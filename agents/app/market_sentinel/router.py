@@ -3,6 +3,8 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.market_sentinel.schemas import (
+    AlertLifecycleEvaluationRequest,
+    AlertLifecycleEvaluationResponse,
     MarketSentinelExplainRequest,
     MarketSentinelExplainResponse,
 )
@@ -30,3 +32,12 @@ async def explain_market_event(
 ) -> MarketSentinelExplainResponse:
     """Explain and validate a candidate market event through LangGraph."""
     return await service.explain_candidate_event(request)
+
+
+@router.post("/lifecycle/evaluate", response_model=AlertLifecycleEvaluationResponse)
+async def evaluate_alert_lifecycle(
+    request: AlertLifecycleEvaluationRequest,
+    service: MarketSentinelAgentService = Depends(get_service),
+) -> AlertLifecycleEvaluationResponse:
+    """Fan-out lifecycle evaluation for a batch of open alerts using LangGraph Send API."""
+    return await service.evaluate_alert_lifecycle(request)

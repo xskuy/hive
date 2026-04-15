@@ -9,11 +9,14 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.features.market_sentinel.schemas import (
     AlertDetailResponse,
+    AlertLifecycleEvaluationResponse,
+    AlertListItem,
     AlertListResponse,
     MarketSentinelConfigResponse,
     PriceHistoryResponse,
     RunScanResponse,
     ScanRunListResponse,
+    UpdateAlertStatusRequest,
     UpdateMarketSentinelConfigRequest,
 )
 from app.features.market_sentinel.service import MarketSentinelService
@@ -35,7 +38,7 @@ def run_scan(service: MarketSentinelService = Depends(get_service)) -> RunScanRe
 
 @router.get("/alerts", response_model=AlertListResponse)
 def list_alerts(
-    limit: int = Query(default=20, ge=1, le=100),
+    limit: int = Query(default=200, ge=1, le=200),
     ticker: str | None = None,
     event_type: str | None = None,
     has_news_support: bool | None = None,
@@ -81,6 +84,24 @@ def get_alert(
 ) -> AlertDetailResponse:
     """Return the full detail payload for a single alert."""
     return service.get_alert(alert_id=alert_id)
+
+
+@router.patch("/alerts/{alert_id}/status", response_model=AlertListItem)
+def update_alert_status(
+    alert_id: int,
+    payload: UpdateAlertStatusRequest,
+    service: MarketSentinelService = Depends(get_service),
+) -> AlertListItem:
+    """Transition an alert to a new lifecycle state."""
+    return service.update_alert_status(alert_id=alert_id, payload=payload)
+
+
+@router.post("/alerts/lifecycle/evaluate", response_model=AlertLifecycleEvaluationResponse)
+def evaluate_alert_lifecycle(
+    service: MarketSentinelService = Depends(get_service),
+) -> AlertLifecycleEvaluationResponse:
+    """Trigger agent-driven lifecycle evaluation for all open alerts."""
+    return service.evaluate_alert_lifecycle()
 
 
 @router.get("/tickers/{ticker}/price-history", response_model=PriceHistoryResponse)

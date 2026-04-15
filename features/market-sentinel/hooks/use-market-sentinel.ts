@@ -13,25 +13,38 @@ import {
 import {
   getMarketSentinelAlert,
   listMarketSentinelAlerts,
+  listMarketSentinelRuns,
   runMarketSentinelScan,
 } from "@/features/market-sentinel/market-sentinel.api"
 import { DEFAULT_ALERT_FILTERS } from "@/features/market-sentinel/market-sentinel.constants"
 import type {
+  AlertLifecycleEvaluationResponse,
+  AlertStatus,
   MarketAlertDetail,
   MarketSentinelAlertFilters,
   MarketAlertListItem,
   MarketSentinelInitialData,
   ScanRunSummary,
 } from "@/features/market-sentinel/market-sentinel.types"
-import { AGENTS_URL, BACKEND_URL } from "@/config/env"
 
 type ViewState = "idle" | "loading" | "running" | "error"
 type ServiceState = "checking" | "online" | "offline"
+type ServiceHealth = {
+  state: ServiceState
+  url: string | null
+}
+const ACTIVE_RUN_POLL_INTERVAL_MS = 5_000
+const SERVICE_STATUS_POLL_INTERVAL_MS = 10_000
 
-async function checkHealth(url: string) {
-  const response = await fetch(url, { cache: "no-store" })
+async function fetchSystemStatus() {
+  const response = await fetch("/api/system-status", { cache: "no-store" })
   if (!response.ok) {
-    throw new Error(`Health check failed for ${url}`)
+    throw new Error("System status request failed")
+  }
+
+  return (await response.json()) as {
+    backend: { state: "online" | "offline"; url: string | null }
+    agents: { state: "online" | "offline"; url: string | null }
   }
 }
 
@@ -59,8 +72,14 @@ export function useMarketSentinel({
     initialData?.selectedAlert ?? null
   )
   const [isDetailLoading, setIsDetailLoading] = useState(!hasInitialData)
-  const [backendStatus, setBackendStatus] = useState<ServiceState>("checking")
-  const [agentsStatus, setAgentsStatus] = useState<ServiceState>("checking")
+  const [backendStatus, setBackendStatus] = useState<ServiceHealth>({
+    state: "checking",
+    url: null,
+  })
+  const [agentsStatus, setAgentsStatus] = useState<ServiceHealth>({
+    state: "checking",
+    url: null,
+  })
   const [alertFilters, setAlertFilters] = useState<MarketSentinelAlertFilters>(
     initialFilters
   )
@@ -68,6 +87,7 @@ export function useMarketSentinel({
   const alertFiltersRef = useRef<MarketSentinelAlertFilters>(initialFilters)
   const activeDetailRequestId = useRef(0)
   const activeDetailController = useRef<AbortController | null>(null)
+  const lastRunRef = useRef<ScanRunSummary | null>(initialData?.lastRun ?? null)
   const detailCache = useRef(
     new Map<number, MarketAlertDetail>(
       initialData?.selectedAlert
@@ -83,6 +103,10 @@ export function useMarketSentinel({
   useEffect(() => {
     alertFiltersRef.current = alertFilters
   }, [alertFilters])
+
+  useEffect(() => {
+    lastRunRef.current = lastRun
+  }, [lastRun])
 
   const deferredTicker = useDeferredValue(alertFilters.ticker ?? "")
   const resolvedFilters = useMemo<MarketSentinelAlertFilters>(
@@ -202,17 +226,12 @@ export function useMarketSentinel({
 
   const refreshServiceStatus = useCallback(async () => {
     try {
-      await checkHealth(`${BACKEND_URL}/health`)
-      setBackendStatus("online")
+      const status = await fetchSystemStatus()
+      setBackendStatus(status.backend)
+      setAgentsStatus(status.agents)
     } catch {
-      setBackendStatus("offline")
-    }
-
-    try {
-      await checkHealth(`${AGENTS_URL}/health`)
-      setAgentsStatus("online")
-    } catch {
-      setAgentsStatus("offline")
+      setBackendStatus({ state: "offline", url: null })
+      setAgentsStatus({ state: "offline", url: null })
     }
   }, [])
 
@@ -222,11 +241,29 @@ export function useMarketSentinel({
 
     try {
       const response = await runMarketSentinelScan()
+      const nextAlerts = response.alerts
+
+      alertsRef.current = nextAlerts
 
       startTransition(() => {
         setLastRun(response.scan_run)
+        setAlerts(nextAlerts)
       })
-      await refreshAlerts()
+
+      if (nextAlerts[0]) {
+        await loadAlertDetail(nextAlerts[0].id)
+      } else {
+        activeDetailController.current?.abort()
+        activeDetailController.current = null
+        activeDetailRequestId.current += 1
+        setIsDetailLoading(false)
+        startTransition(() => {
+          setSelectedAlertId(null)
+          setSelectedAlert(null)
+        })
+      }
+
+      setState("idle")
     } catch (runError) {
       setState("error")
       setIsDetailLoading(false)
@@ -236,7 +273,7 @@ export function useMarketSentinel({
           : "Failed to run the Market Sentinel scan."
       )
     }
-  }, [refreshAlerts])
+  }, [loadAlertDetail])
 
   useEffect(() => {
     void refreshServiceStatus()
@@ -250,6 +287,16 @@ export function useMarketSentinel({
     }
   }, [hasInitialData, refreshAlerts, refreshServiceStatus])
 
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      void refreshServiceStatus()
+    }, SERVICE_STATUS_POLL_INTERVAL_MS)
+
+    return () => {
+      window.clearInterval(intervalId)
+    }
+  }, [refreshServiceStatus])
+
   const didHydrateFilters = useRef(false)
 
   useEffect(() => {
@@ -262,15 +309,112 @@ export function useMarketSentinel({
     void refreshAlerts()
   }, [refreshAlerts, resolvedFilters])
 
+  useEffect(() => {
+    if (lastRun?.status !== "running") {
+      return
+    }
+
+    let disposed = false
+
+    const pollLatestRun = async () => {
+      try {
+        const response = await listMarketSentinelRuns(1)
+        if (disposed) {
+          return
+        }
+
+        const nextRun = response.items[0] ?? null
+        const previousRun = lastRunRef.current
+
+        lastRunRef.current = nextRun
+        startTransition(() => {
+          setLastRun(nextRun)
+        })
+
+        if (
+          previousRun?.status === "running" &&
+          nextRun?.status !== "running"
+        ) {
+          await refreshAlerts()
+        }
+      } catch {
+        // Ignore transient polling failures and keep the last known run state.
+      }
+    }
+
+    const intervalId = window.setInterval(() => {
+      void pollLatestRun()
+    }, ACTIVE_RUN_POLL_INTERVAL_MS)
+    void pollLatestRun()
+
+    return () => {
+      disposed = true
+      window.clearInterval(intervalId)
+    }
+  }, [lastRun?.status, refreshAlerts])
+
+  const isRunning = state === "running" || lastRun?.status === "running"
+
+  const [isEvaluatingLifecycle, setIsEvaluatingLifecycle] = useState(false)
+  const [lifecycleResult, setLifecycleResult] =
+    useState<AlertLifecycleEvaluationResponse | null>(null)
+
+  const updateAlertStatus = useCallback(
+    (alertId: number, newStatus: AlertStatus) => {
+      // Update the alerts list
+      setAlerts((prev) =>
+        prev.map((a) =>
+          a.id === alertId
+            ? { ...a, status: newStatus, status_updated_at: new Date().toISOString() }
+            : a
+        )
+      )
+      // Update the selected alert detail if it matches
+      setSelectedAlert((prev) =>
+        prev?.id === alertId
+          ? { ...prev, status: newStatus, status_updated_at: new Date().toISOString() }
+          : prev
+      )
+      // Invalidate the detail cache so re-selecting fetches fresh data
+      detailCache.current.delete(alertId)
+    },
+    []
+  )
+
+  const evaluateLifecycle = useCallback(async () => {
+    setIsEvaluatingLifecycle(true)
+    setLifecycleResult(null)
+    try {
+      const res = await fetch("/api/market-sentinel/alerts/lifecycle", {
+        method: "POST",
+      })
+      if (!res.ok) throw new Error("Lifecycle evaluation failed")
+      const data: AlertLifecycleEvaluationResponse = await res.json()
+      setLifecycleResult(data)
+      for (const t of data.transitions) {
+        if (t.recommended_status !== t.current_status) {
+          updateAlertStatus(t.alert_id, t.recommended_status)
+        }
+      }
+    } catch {
+      // silent — user can retry
+    } finally {
+      setIsEvaluatingLifecycle(false)
+    }
+  }, [updateAlertStatus])
+
   return {
     agentsStatus,
     alerts,
     alertFilters,
     backendStatus,
     error,
+    evaluateLifecycle,
     isDetailLoading,
-    isRunning: state === "running",
+    isEvaluatingLifecycle,
+    isRunning,
     lastRun,
+    lifecycleResult,
     refreshAlerts,
     refreshServiceStatus,
     runScan,
@@ -278,6 +422,7 @@ export function useMarketSentinel({
     selectedAlertId,
     setAlertFilters,
     selectAlert: loadAlertDetail,
+    updateAlertStatus,
     state,
   }
 }

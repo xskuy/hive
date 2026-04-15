@@ -45,5 +45,5 @@ export const DEFAULT_ALERT_FILTERS: MarketSentinelAlertFilters = {
   sort_by: "created_at",
   sort_order: "desc",
   latest_unique: true,
-  limit: 20,
+  limit: 200,
 }

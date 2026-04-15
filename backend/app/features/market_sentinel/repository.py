@@ -261,6 +261,30 @@ class MarketSentinelRepository:
         )
         return db.scalars(stmt).unique().one_or_none()
 
+    def update_alert_status(
+        self,
+        db: Session,
+        *,
+        alert_id: int,
+        status: str,
+    ) -> Alert | None:
+        alert = db.get(Alert, alert_id)
+        if alert is None:
+            return None
+        alert.status = status
+        alert.status_updated_at = utc_now()
+        db.flush()
+        return alert
+
+    def list_open_alerts(self, db: Session) -> list[Alert]:
+        """Return alerts still requiring attention (not resolved)."""
+        stmt = (
+            select(Alert)
+            .where(Alert.status.in_(["new", "investigating", "confirmed", "watching"]))
+            .order_by(Alert.created_at.desc())
+        )
+        return list(db.scalars(stmt))
+
     def get_alert_snapshots(self, db: Session, *, alert: Alert) -> list[MarketSnapshot]:
         stmt = (
             select(MarketSnapshot)

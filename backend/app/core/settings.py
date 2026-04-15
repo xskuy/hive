@@ -11,7 +11,7 @@ DEFAULT_UNIVERSE_PATH = (
     / "features"
     / "market_sentinel"
     / "data"
-    / "sp500_top50.json"
+    / "sp500_top200.json"
 )
 
 

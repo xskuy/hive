@@ -9,7 +9,7 @@ dev-infra:
 
 # Solo frontend
 dev-web:
-	bun dev &
+	sh scripts/dev-web.sh &
 
 # Solo backend transaccional
 dev-backend:
@@ -17,7 +17,7 @@ dev-backend:
 
 # Solo backend de agentes
 dev-agents:
-	cd agents && uv run uvicorn app.main:app --reload --port 8000 &
+	sh scripts/dev-agents.sh &
 
 # Parar todo
 stop:

@@ -41,6 +41,45 @@ class MarketSentinelExplainResponse(BaseModel):
     is_noise: bool
 
 
+class AlertLifecycleItem(BaseModel):
+    """Single open alert sent for lifecycle evaluation."""
+
+    alert_id: int
+    ticker: str
+    company_name: str
+    event_type: str
+    current_status: str
+    confidence_score: float
+    has_news_support: bool
+    que_paso: str
+    posible_causa: str
+    created_at: str
+
+
+class AlertLifecycleEvaluationRequest(BaseModel):
+    """Batch of open alerts to evaluate for status transitions."""
+
+    alerts: list[AlertLifecycleItem]
+
+
+class AlertStatusTransition(BaseModel):
+    """Recommended lifecycle transition for a single alert."""
+
+    alert_id: int
+    ticker: str
+    company_name: str
+    current_status: str
+    recommended_status: str
+    reasoning: str
+    confidence: float
+
+
+class AlertLifecycleEvaluationResponse(BaseModel):
+    """Recommended transitions returned to the transactional backend."""
+
+    transitions: list[AlertStatusTransition]
+
+
 class ExplanationDraft(BaseModel):
     """LLM output for the user-facing explanation."""
 

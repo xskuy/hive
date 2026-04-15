@@ -7,7 +7,11 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import RetryPolicy
 from typing_extensions import TypedDict
 
+from app.agents.alert_lifecycle import AlertInput, alert_lifecycle_graph
 from app.market_sentinel.schemas import (
+    AlertLifecycleEvaluationRequest,
+    AlertLifecycleEvaluationResponse,
+    AlertStatusTransition,
     ExplanationDraft,
     MarketSentinelExplainRequest,
     MarketSentinelExplainResponse,
@@ -196,6 +200,31 @@ Reglas:
                 "confidence_score": state["baseline_confidence_score"],
                 "is_noise": False,
             }
+
+    async def evaluate_alert_lifecycle(
+        self,
+        request: AlertLifecycleEvaluationRequest,
+    ) -> AlertLifecycleEvaluationResponse:
+        """Fan-out alert evaluation using the LangGraph lifecycle graph."""
+        alerts_input = [AlertInput(**item.model_dump()) for item in request.alerts]
+
+        result = await alert_lifecycle_graph.ainvoke(
+            {"alerts": alerts_input, "results": []}
+        )
+
+        transitions = [
+            AlertStatusTransition(
+                alert_id=r["alert_id"],
+                ticker=r["ticker"],
+                company_name=r["company_name"],
+                current_status=r["current_status"],
+                recommended_status=r["recommended_status"],
+                reasoning=r["reasoning"],
+                confidence=r["confidence"],
+            )
+            for r in result.get("results", [])
+        ]
+        return AlertLifecycleEvaluationResponse(transitions=transitions)
 
     def _build_explanation_fallback(
         self,

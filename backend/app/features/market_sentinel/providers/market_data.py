@@ -16,6 +16,14 @@ from app.features.market_sentinel.types import MarketDataProvider, MarketSignal,
 logger = logging.getLogger(__name__)
 
 
+class PolygonFetchError(ValueError):
+    """Sanitized Polygon failure that should not expose request URLs or keys."""
+
+
+class PolygonRateLimitError(PolygonFetchError):
+    """Explicit rate-limit failure so callers can degrade gracefully."""
+
+
 @dataclass(frozen=True)
 class PolygonAggregateBar:
     """Minimal aggregate bar shape needed to build a normalized market signal."""
@@ -143,6 +151,12 @@ class PolygonMarketDataProvider:
         """Isolate per-ticker failures so the scan can fallback selectively."""
         try:
             return self._load_signal(entry), None
+        except PolygonRateLimitError as exc:
+            logger.warning("%s", exc)
+            return None, entry.ticker
+        except PolygonFetchError as exc:
+            logger.warning("%s", exc)
+            return None, entry.ticker
         except Exception:
             logger.exception("Polygon market data fetch failed for %s", entry.ticker)
             return None, entry.ticker
@@ -201,12 +215,21 @@ class PolygonMarketDataProvider:
 
         with httpx.Client(timeout=self.timeout_seconds) as client:
             response = client.get(url, params=params)
-            response.raise_for_status()
+            try:
+                response.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code == 429:
+                    raise PolygonRateLimitError(
+                        f"Polygon rate limit hit for {ticker}; falling back to the secondary provider."
+                    ) from None
+                raise PolygonFetchError(
+                    f"Polygon request failed for {ticker} with status {exc.response.status_code}."
+                ) from None
             payload = response.json()
 
         results = payload.get("results", [])
         if not results:
-            raise ValueError(f"No Polygon aggregate data available for {ticker}")
+            raise PolygonFetchError(f"No Polygon aggregate data available for {ticker}")
 
         bars = [
             PolygonAggregateBar(
@@ -217,7 +240,7 @@ class PolygonMarketDataProvider:
             if item.get("c") is not None
         ]
         if len(bars) < 21:
-            raise ValueError(f"Polygon returned insufficient aggregate bars for {ticker}")
+            raise PolygonFetchError(f"Polygon returned insufficient aggregate bars for {ticker}")
         return bars
 
 
