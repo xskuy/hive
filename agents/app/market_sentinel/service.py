@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from langchain_openai import ChatOpenAI
 from langgraph.graph import END, START, StateGraph
@@ -8,11 +8,17 @@ from langgraph.types import RetryPolicy
 from typing_extensions import TypedDict
 
 from app.agents.alert_lifecycle import AlertInput, alert_lifecycle_graph
+from app.agents.market_briefing import briefing_graph
 from app.market_sentinel.schemas import (
     AlertLifecycleEvaluationRequest,
     AlertLifecycleEvaluationResponse,
     AlertStatusTransition,
+    BriefingDraft,
+    CritiqueDraft,
+    CriticStatus,
     ExplanationDraft,
+    MarketBriefingRequest,
+    MarketBriefingResponse,
     MarketSentinelExplainRequest,
     MarketSentinelExplainResponse,
     ValidationDraft,
@@ -21,6 +27,7 @@ from config import settings
 
 
 retry = RetryPolicy(max_attempts=3, initial_interval=1.0)
+CriticRoute = Literal["event_explainer", "signal_validator"]
 
 
 class MarketSentinelState(TypedDict):
@@ -43,18 +50,25 @@ class MarketSentinelState(TypedDict):
     por_que_importa: str
     confidence_score: float
     is_noise: bool
+    critic_status: CriticStatus
+    critic_feedback: str | None
+    critic_revision_count: int
+    critic_should_rewrite: bool
+    used_explanation_fallback: bool
 
 
 class MarketSentinelAgentService:
-    """Explain and validate candidate market events through a small graph."""
+    """Explain and validate candidate market events through a bounded critique loop."""
 
     def __init__(
         self,
         *,
         explainer_chain: Any | None = None,
+        critic_chain: Any | None = None,
         validator_chain: Any | None = None,
     ) -> None:
         self.explainer_chain = explainer_chain or self._build_explainer_chain()
+        self.critic_chain = critic_chain or self._build_critic_chain()
         self.validator_chain = validator_chain or self._build_validator_chain()
         self.graph = self._build_graph()
 
@@ -71,6 +85,11 @@ class MarketSentinelAgentService:
             "por_que_importa": "",
             "confidence_score": request.baseline_confidence_score,
             "is_noise": False,
+            "critic_status": "skipped",
+            "critic_feedback": None,
+            "critic_revision_count": 0,
+            "critic_should_rewrite": False,
+            "used_explanation_fallback": False,
         }
 
         result = await self.graph.ainvoke(initial_state)
@@ -81,16 +100,24 @@ class MarketSentinelAgentService:
             por_que_importa=result["por_que_importa"],
             confidence_score=result["confidence_score"],
             is_noise=result["is_noise"],
+            critic_status=result["critic_status"],
+            critic_feedback=result["critic_feedback"],
+            critic_revision_count=result["critic_revision_count"],
         )
 
     def _build_graph(self):
-        """Keep the graph linear until the product needs richer branching."""
+        """Build the explanation flow with a bounded explainer/critic loop."""
         graph = StateGraph(MarketSentinelState)
 
         graph.add_node("context_builder", self._build_context_node)
         graph.add_node(
             "event_explainer",
             self._event_explainer_node,
+            retry_policy=retry,
+        )
+        graph.add_node(
+            "explanation_critic",
+            self._explanation_critic_node,
             retry_policy=retry,
         )
         graph.add_node(
@@ -101,7 +128,15 @@ class MarketSentinelAgentService:
 
         graph.add_edge(START, "context_builder")
         graph.add_edge("context_builder", "event_explainer")
-        graph.add_edge("event_explainer", "signal_validator")
+        graph.add_edge("event_explainer", "explanation_critic")
+        graph.add_conditional_edges(
+            "explanation_critic",
+            self._route_after_critic,
+            {
+                "event_explainer": "event_explainer",
+                "signal_validator": "signal_validator",
+            },
+        )
         graph.add_edge("signal_validator", END)
 
         return graph.compile()
@@ -113,6 +148,14 @@ class MarketSentinelAgentService:
             api_key=settings.openai_api_key,
             temperature=0,
         ).with_structured_output(ExplanationDraft)
+
+    def _build_critic_chain(self):
+        """Create the structured-output LLM used for the critic node."""
+        return ChatOpenAI(
+            model=settings.market_sentinel_model_name,
+            api_key=settings.openai_api_key,
+            temperature=0,
+        ).with_structured_output(CritiqueDraft)
 
     def _build_validator_chain(self):
         """Create the structured-output LLM used for the validation node."""
@@ -147,8 +190,18 @@ class MarketSentinelAgentService:
     async def _event_explainer_node(
         self,
         state: MarketSentinelState,
-    ) -> dict[str, str]:
-        """Generate the three explanation fields consumed by the backend/UI."""
+    ) -> dict[str, str | bool]:
+        """Generate or rewrite the explanation used by downstream validation."""
+        revision_directive = ""
+        if state["critic_feedback"]:
+            revision_directive = f"""
+Ya existe un borrador previo.
+Reescribe la explicacion corrigiendo exactamente este feedback del critic:
+{state["critic_feedback"]}
+
+No menciones la revision, al critic ni el proceso interno.
+"""
+
         try:
             response = await self.explainer_chain.ainvoke(
                 f"""
@@ -156,6 +209,7 @@ Eres un analista de mercado.
 Devuelve una explicacion corta y concreta en espanol.
 
 {state["context_block"]}
+{revision_directive}
 
 Genera:
 - que_paso
@@ -164,9 +218,82 @@ Genera:
 """
             )
             payload = ExplanationDraft.model_validate(response)
-            return payload.model_dump()
+            return {
+                **payload.model_dump(),
+                "used_explanation_fallback": False,
+                "critic_should_rewrite": False,
+            }
         except Exception:
-            return self._build_explanation_fallback(state)
+            return {
+                **self._build_explanation_fallback(state),
+                "used_explanation_fallback": True,
+                "critic_should_rewrite": False,
+            }
+
+    async def _explanation_critic_node(
+        self,
+        state: MarketSentinelState,
+    ) -> dict[str, str | bool | int | None]:
+        """Review the explanation and request at most two targeted rewrites."""
+        if state["used_explanation_fallback"]:
+            return {
+                "critic_status": "skipped",
+                "critic_should_rewrite": False,
+            }
+
+        try:
+            response = await self.critic_chain.ainvoke(
+                f"""
+Eres un revisor critico de explicaciones de mercado.
+Evalua si la explicacion propuesta es suficientemente clara, especifica y coherente con los datos.
+
+{state["context_block"]}
+
+Explicacion propuesta:
+- que_paso: {state["que_paso"]}
+- posible_causa: {state["posible_causa"]}
+- por_que_importa: {state["por_que_importa"]}
+
+Reglas:
+- should_rewrite=true solo si hay un problema material que amerite reescritura.
+- Usa feedback para describir la correccion concreta que debe hacer el explainer.
+- Si la explicacion ya esta lista para validacion final, usa should_rewrite=false y feedback="".
+"""
+            )
+            payload = CritiqueDraft.model_validate(response)
+        except Exception:
+            return {
+                "critic_status": "skipped",
+                "critic_should_rewrite": False,
+            }
+
+        feedback = payload.feedback.strip() or self._default_critic_feedback()
+        revision_count = state["critic_revision_count"]
+
+        if payload.should_rewrite:
+            if revision_count < 2:
+                return {
+                    "critic_status": "revised",
+                    "critic_feedback": feedback,
+                    "critic_revision_count": revision_count + 1,
+                    "critic_should_rewrite": True,
+                }
+            return {
+                "critic_status": "max_revisions_reached",
+                "critic_feedback": feedback,
+                "critic_should_rewrite": False,
+            }
+
+        return {
+            "critic_status": "revised" if revision_count > 0 else "passed",
+            "critic_should_rewrite": False,
+        }
+
+    def _route_after_critic(self, state: MarketSentinelState) -> CriticRoute:
+        """Loop back to the explainer only while the critic still requests rewrites."""
+        if state["critic_should_rewrite"]:
+            return "event_explainer"
+        return "signal_validator"
 
     async def _signal_validator_node(
         self,
@@ -200,6 +327,30 @@ Reglas:
                 "confidence_score": state["baseline_confidence_score"],
                 "is_noise": False,
             }
+
+    async def generate_briefing(
+        self,
+        request: MarketBriefingRequest,
+    ) -> MarketBriefingResponse:
+        """Run the briefing graph and return the post-scan intelligence summary."""
+        initial_state = {
+            "scan_run_id": request.scan_run_id,
+            "current_alerts": [a.model_dump() for a in request.alerts],
+            "ticker_histories": {},
+            "sector_patterns": [],
+            "briefing": "",
+            "standout_ticker": None,
+            "noise_warning": None,
+        }
+
+        result = await briefing_graph.ainvoke(initial_state)
+
+        return MarketBriefingResponse(
+            briefing=result["briefing"],
+            sector_patterns=result["sector_patterns"],
+            standout_ticker=result["standout_ticker"],
+            noise_warning=result["noise_warning"],
+        )
 
     async def evaluate_alert_lifecycle(
         self,
@@ -249,3 +400,9 @@ Reglas:
                 "informativo para separar ruido de una senal potencialmente relevante."
             ),
         }
+
+    def _default_critic_feedback(self) -> str:
+        """Fallback feedback when the critic requests a rewrite but returns no guidance."""
+        return (
+            "Haz la explicacion mas especifica, coherente con los datos y clara para un analista."
+        )
