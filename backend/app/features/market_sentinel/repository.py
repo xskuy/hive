@@ -97,6 +97,9 @@ class MarketSentinelRepository:
         has_news_support: bool,
         explanation: ExplanationPayload,
         news_items: list[NewsSearchItem],
+        critic_status: str,
+        critic_feedback: str | None,
+        critic_revision_count: int,
     ) -> Alert:
         alert = Alert(
             scan_run_id=scan_run_id,
@@ -108,6 +111,9 @@ class MarketSentinelRepository:
             que_paso=explanation.que_paso,
             posible_causa=explanation.posible_causa,
             por_que_importa=explanation.por_que_importa,
+            critic_status=critic_status,
+            critic_feedback=critic_feedback,
+            critic_revision_count=critic_revision_count,
         )
         db.add(alert)
         db.flush()
@@ -153,6 +159,25 @@ class MarketSentinelRepository:
         run.noise_discarded = noise_discarded
         run.cooldown_suppressed = cooldown_suppressed
         run.failed_tickers = failed_tickers
+        db.flush()
+
+    def save_briefing(
+        self,
+        db: Session,
+        *,
+        run_id: int,
+        briefing_text: str,
+        sector_patterns: list[str],
+        standout_ticker: str | None,
+        noise_warning: str | None,
+    ) -> None:
+        run = db.get(ScanRun, run_id)
+        if run is None:
+            return
+        run.briefing_text = briefing_text
+        run.briefing_sector_patterns = sector_patterns
+        run.briefing_standout_ticker = standout_ticker
+        run.briefing_noise_warning = noise_warning
         db.flush()
 
     def mark_scan_failed(self, db: Session, *, run_id: int) -> None:

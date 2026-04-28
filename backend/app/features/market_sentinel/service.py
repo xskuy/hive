@@ -27,6 +27,7 @@ from app.features.market_sentinel.schemas import (
     PriceHistoryResponse,
     PricePoint,
     RunScanResponse,
+    ScanBriefing,
     ScanRunListResponse,
     ScanRunSummary,
 )
@@ -177,6 +178,9 @@ class MarketSentinelService:
                     has_news_support=has_news_support,
                     explanation=explanation,
                     news_items=news_items,
+                    critic_status=agent_result.critic_status,
+                    critic_feedback=agent_result.critic_feedback,
+                    critic_revision_count=agent_result.critic_revision_count,
                 )
                 alerts_created += 1
 
@@ -209,9 +213,34 @@ class MarketSentinelService:
                 status_code=500, detail="The scan finished but the run could not be reloaded."
             )
 
+        briefing: ScanBriefing | None = None
+        if current_alerts:
+            try:
+                briefing = self.agents_client.generate_briefing(
+                    scan_run_id=run.id,
+                    alerts=list(current_alerts),
+                )
+            except Exception:
+                logger.warning(
+                    "Market Sentinel LLM briefing failed for run %d; using stat fallback.",
+                    run.id,
+                )
+                briefing = self._build_stat_briefing(list(current_alerts))
+
+            self.repository.save_briefing(
+                self.db,
+                run_id=run.id,
+                briefing_text=briefing.briefing,
+                sector_patterns=briefing.sector_patterns,
+                standout_ticker=briefing.standout_ticker,
+                noise_warning=briefing.noise_warning,
+            )
+            self.db.commit()
+
         return RunScanResponse(
             scan_run=ScanRunSummary.model_validate(current_run),
             alerts=[AlertListItem.model_validate(alert) for alert in current_alerts],
+            briefing=briefing,
         )
 
     def list_alerts(
@@ -386,6 +415,32 @@ class MarketSentinelService:
             )
 
         return AlertLifecycleEvaluationResponse(transitions=applied)
+
+    def _build_stat_briefing(self, alerts: list) -> ScanBriefing:
+        """Generate a statistics-only briefing when the LLM agents service is unavailable."""
+        from app.features.market_sentinel.models import Alert as AlertModel
+
+        top: AlertModel | None = max(alerts, key=lambda a: a.confidence_score, default=None)
+        news_count = sum(1 for a in alerts if a.has_news_support)
+
+        parts: list[str] = [f"El scan encontró {len(alerts)} alerta(s)."]
+        if top:
+            direction = "subió" if "surge" in top.event_type or "spike" in top.event_type else "registró una anomalía"
+            parts.append(
+                f"La señal más destacada es {top.ticker} ({top.event_type.replace('_', ' ')},"
+                f" confianza {top.confidence_score:.0%})."
+            )
+        if news_count > 0:
+            parts.append(f"{news_count} de ellas cuentan con respaldo en noticias recientes.")
+        else:
+            parts.append("Ninguna alerta tiene respaldo en noticias en este scan.")
+
+        return ScanBriefing(
+            briefing=" ".join(parts),
+            sector_patterns=[],
+            standout_ticker=top.ticker if top else None,
+            noise_warning=None,
+        )
 
     def _ensure_scan_is_allowed(self) -> None:
         """Fail fast when the scan should not run in the current environment."""

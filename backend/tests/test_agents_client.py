@@ -59,6 +59,9 @@ def test_agents_client_falls_back_when_remote_endpoint_fails(monkeypatch) -> Non
     assert result.is_noise is False
     assert "NVDA" in result.que_paso
     assert "NVIDIA rallies on AI demand" in result.posible_causa
+    assert result.critic_status == "skipped"
+    assert result.critic_feedback is None
+    assert result.critic_revision_count == 0
 
 
 def test_agents_client_discovers_alternative_local_port(monkeypatch) -> None:
@@ -100,6 +103,9 @@ def test_agents_client_discovers_alternative_local_port(monkeypatch) -> None:
                         "por_que_importa": "Puede sostener la tendencia.",
                         "confidence_score": 0.91,
                         "is_noise": False,
+                        "critic_status": "revised",
+                        "critic_feedback": "Agrega mas detalle sobre el catalizador.",
+                        "critic_revision_count": 1,
                     },
                 )
 
@@ -127,3 +133,6 @@ def test_agents_client_discovers_alternative_local_port(monkeypatch) -> None:
     assert result.confidence_score == 0.91
     assert result.que_paso == "NVIDIA subio por noticia positiva."
     assert client._resolved_base_url == "http://localhost:8002"
+    assert result.critic_status == "revised"
+    assert result.critic_feedback == "Agrega mas detalle sobre el catalizador."
+    assert result.critic_revision_count == 1
