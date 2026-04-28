@@ -14,6 +14,7 @@ import {
 import { RecentAlertsPreviewCard } from "@/features/market-sentinel/components/RecentAlertsPreviewCard"
 import { RunScanButton } from "@/features/market-sentinel/components/RunScanButton"
 import { ScanActivityBanner } from "@/features/market-sentinel/components/ScanActivityBanner"
+import { ScanBriefingCard } from "@/features/market-sentinel/components/ScanBriefingCard"
 import { RunSummaryCard } from "@/features/market-sentinel/components/RunSummaryCard"
 import { SettingsSnapshotCard } from "@/features/market-sentinel/components/SettingsSnapshotCard"
 import { SystemStatusCard } from "@/features/market-sentinel/components/SystemStatusCard"
@@ -40,6 +41,7 @@ export function MarketSentinelOverviewPage({
     agentsStatus,
     alerts,
     backendStatus,
+    briefing,
     error,
     isRunning,
     lastRun,
@@ -189,7 +191,11 @@ export function MarketSentinelOverviewPage({
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(20rem,.8fr)]">
         <RecentAlertsPreviewCard alerts={alerts} />
-        <SettingsSnapshotCard config={config} />
+        {briefing ? (
+          <ScanBriefingCard briefing={briefing} />
+        ) : (
+          <SettingsSnapshotCard config={config} />
+        )}
       </section>
     </div>
   )

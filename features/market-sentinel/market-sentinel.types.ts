@@ -11,6 +11,10 @@ export interface ScanRunSummary {
   noise_discarded: number
   cooldown_suppressed: number
   failed_tickers: number
+  briefing_text: string | null
+  briefing_sector_patterns: string[] | null
+  briefing_standout_ticker: string | null
+  briefing_noise_warning: string | null
 }
 
 export interface AlertNewsItem {
@@ -35,6 +39,7 @@ export interface MarketSnapshot {
 }
 
 export type AlertStatus = "new" | "investigating" | "confirmed" | "watching" | "resolved"
+export type CriticStatus = "passed" | "revised" | "skipped" | "max_revisions_reached"
 
 export interface MarketAlertListItem {
   id: number
@@ -44,6 +49,9 @@ export interface MarketAlertListItem {
   event_type: string
   confidence_score: number
   has_news_support: boolean
+  critic_status: CriticStatus
+  critic_feedback: string | null
+  critic_revision_count: number
   status: AlertStatus
   status_updated_at: string
   created_at: string
@@ -63,9 +71,17 @@ export interface MarketSentinelInitialData {
   lastRun: ScanRunSummary | null
 }
 
+export interface ScanBriefing {
+  briefing: string
+  sector_patterns: string[]
+  standout_ticker: string | null
+  noise_warning: string | null
+}
+
 export interface RunScanResponse {
   scan_run: ScanRunSummary
   alerts: MarketAlertListItem[]
+  briefing: ScanBriefing | null
 }
 
 export interface AlertListResponse {

@@ -73,6 +73,7 @@ export function MarketSentinelPage({
     alerts,
     alertFilters,
     backendStatus,
+    briefing,
     error,
     evaluateLifecycle,
     isDetailLoading,
@@ -96,6 +97,9 @@ export function MarketSentinelPage({
         isRunning={isRunning}
         disabled={state === "loading"}
         onRun={runScan}
+        briefing={briefing}
+        lastRun={lastRun}
+        alerts={alerts}
       />
 
       {error && (

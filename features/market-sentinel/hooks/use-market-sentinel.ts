@@ -24,6 +24,7 @@ import type {
   MarketSentinelAlertFilters,
   MarketAlertListItem,
   MarketSentinelInitialData,
+  ScanBriefing,
   ScanRunSummary,
 } from "@/features/market-sentinel/market-sentinel.types"
 
@@ -248,6 +249,7 @@ export function useMarketSentinel({
       startTransition(() => {
         setLastRun(response.scan_run)
         setAlerts(nextAlerts)
+        setBriefing(response.briefing ?? null)
       })
 
       if (nextAlerts[0]) {
@@ -355,6 +357,17 @@ export function useMarketSentinel({
 
   const isRunning = state === "running" || lastRun?.status === "running"
 
+  const [briefing, setBriefing] = useState<ScanBriefing | null>(() => {
+    const run = initialData?.lastRun
+    if (!run?.briefing_text) return null
+    return {
+      briefing: run.briefing_text,
+      sector_patterns: run.briefing_sector_patterns ?? [],
+      standout_ticker: run.briefing_standout_ticker ?? null,
+      noise_warning: run.briefing_noise_warning ?? null,
+    }
+  })
+
   const [isEvaluatingLifecycle, setIsEvaluatingLifecycle] = useState(false)
   const [lifecycleResult, setLifecycleResult] =
     useState<AlertLifecycleEvaluationResponse | null>(null)
@@ -408,6 +421,7 @@ export function useMarketSentinel({
     alerts,
     alertFilters,
     backendStatus,
+    briefing,
     error,
     evaluateLifecycle,
     isDetailLoading,

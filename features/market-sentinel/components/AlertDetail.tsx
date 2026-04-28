@@ -39,6 +39,135 @@ function formatEventType(s: string) {
   return s.replaceAll("_", " ")
 }
 
+// ── Critic review section ──────────────────────────────────────────────────
+
+const CRITIC_MAX_REVISIONS = 2
+
+const criticMeta = {
+  passed: {
+    label: "Passed on first review",
+    sublabel: "The explanation was clear and specific — no rewrites needed.",
+    dotColor: "bg-emerald-400",
+    borderColor: "border-emerald-500/20",
+    bgColor: "bg-emerald-500/[0.04]",
+    iconColor: "text-emerald-400",
+    showCheck: true,
+  },
+  revised: {
+    label: "Revised before validation",
+    sublabel: (n: number) =>
+      `The explanation was rewritten ${n} time${n !== 1 ? "s" : ""} based on critic feedback.`,
+    dotColor: "bg-sky-400",
+    borderColor: "border-sky-500/20",
+    bgColor: "bg-sky-500/[0.04]",
+    iconColor: "text-sky-400",
+    showCheck: false,
+  },
+  max_revisions_reached: {
+    label: "Revision limit reached",
+    sublabel: `After ${CRITIC_MAX_REVISIONS} rewrites, the critic's concerns below may still persist in the final explanation.`,
+    dotColor: "bg-amber-400",
+    borderColor: "border-amber-500/20",
+    bgColor: "bg-amber-500/[0.04]",
+    iconColor: "text-amber-400",
+    showCheck: false,
+  },
+  skipped: {
+    label: "Review skipped",
+    sublabel: "The explainer used a fallback format — critic review was bypassed.",
+    dotColor: "bg-muted-foreground/20",
+    borderColor: "border-border/40",
+    bgColor: "bg-background/30",
+    iconColor: "text-muted-foreground/30",
+    showCheck: false,
+  },
+} satisfies Record<string, {
+  label: string
+  sublabel: string | ((n: number) => string)
+  dotColor: string
+  borderColor: string
+  bgColor: string
+  iconColor: string
+  showCheck: boolean
+}>
+
+function CriticReviewSection({ alert }: { alert: MarketAlertDetail }) {
+  const { critic_status, critic_feedback, critic_revision_count } = alert
+  const meta = criticMeta[critic_status] ?? criticMeta.skipped
+  const sublabel =
+    typeof meta.sublabel === "function" ? meta.sublabel(critic_revision_count) : meta.sublabel
+
+  return (
+    <div className={cn("rounded-2xl border p-4", meta.borderColor, meta.bgColor)}>
+
+      {/* ── Top row: icon + text + dots ── */}
+      <div className="flex items-start justify-between gap-3">
+
+        <div className="flex items-start gap-2.5">
+          {/* shield icon */}
+          <div className={cn("mt-0.5 shrink-0", meta.iconColor)}>
+            <svg width="15" height="15" viewBox="0 0 14 14" fill="none">
+              <path
+                d="M7 1L2 3v4c0 2.8 2.1 5.4 5 6 2.9-.6 5-3.2 5-6V3L7 1z"
+                stroke="currentColor"
+                strokeWidth="1.25"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              {meta.showCheck && (
+                <path
+                  d="M4.5 7l2 2 3-3"
+                  stroke="currentColor"
+                  strokeWidth="1.25"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              )}
+            </svg>
+          </div>
+
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-[9px] uppercase tracking-[0.3em] text-muted-foreground/40">
+                QA
+              </span>
+              <span className="text-xs font-medium text-foreground/80">{meta.label}</span>
+            </div>
+            <p className="text-[11px] leading-[1.45] text-muted-foreground/55">{sublabel}</p>
+          </div>
+        </div>
+
+        {/* revision dots — only for statuses that have iterations */}
+        {critic_status !== "skipped" && (
+          <div className="flex shrink-0 items-center gap-1 pt-1">
+            {Array.from({ length: CRITIC_MAX_REVISIONS }).map((_, i) => (
+              <div
+                key={i}
+                className={cn(
+                  "h-1.5 w-1.5 rounded-full",
+                  i < critic_revision_count ? meta.dotColor : "bg-muted-foreground/15",
+                )}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── Critic feedback note ── */}
+      {critic_feedback && critic_status !== "skipped" && (
+        <div className="mt-3 rounded-xl border border-border/25 bg-background/50 px-3.5 py-3">
+          <p className="mb-1.5 font-mono text-[8.5px] uppercase tracking-[0.3em] text-muted-foreground/35">
+            What the critic flagged
+          </p>
+          <p className="text-[12.5px] italic leading-5 text-foreground/60">
+            &ldquo;{critic_feedback}&rdquo;
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Skeletons ──────────────────────────────────────────────────────────────
 
 function LoadingSkeleton() {
@@ -307,6 +436,8 @@ export function AlertDetail({ alert, isLoading, onStatusChange }: AlertDetailPro
             accentClass="border-primary/50"
           />
         </div>
+
+        <CriticReviewSection alert={alert} />
 
         {/* ── Related news ── */}
         <div>
