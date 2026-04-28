@@ -9,6 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { CriticStatusBadge } from "@/features/market-sentinel/components/CriticStatusBadge"
 import { ClientDateTime } from "@/features/market-sentinel/components/ClientDateTime"
 import { cn } from "@/lib/utils"
 
@@ -89,12 +90,18 @@ export function AlertList({ alerts, selectedAlertId, onSelect }: AlertListProps)
                         {alert.company_name}
                       </p>
                     </div>
-                    <Badge
-                      variant={alert.has_news_support ? "default" : "outline"}
-                      className="shrink-0 text-[11px]"
-                    >
-                      {formatEventType(alert.event_type)}
-                    </Badge>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <Badge
+                        variant={alert.has_news_support ? "default" : "outline"}
+                        className="shrink-0 text-[11px]"
+                      >
+                        {formatEventType(alert.event_type)}
+                      </Badge>
+                      <CriticStatusBadge
+                        status={alert.critic_status}
+                        revisionCount={alert.critic_revision_count}
+                      />
+                    </div>
                   </div>
 
                   {/* description */}
