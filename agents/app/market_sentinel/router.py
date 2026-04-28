@@ -5,6 +5,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.market_sentinel.schemas import (
     AlertLifecycleEvaluationRequest,
     AlertLifecycleEvaluationResponse,
+    MarketBriefingRequest,
+    MarketBriefingResponse,
     MarketSentinelExplainRequest,
     MarketSentinelExplainResponse,
 )
@@ -32,6 +34,15 @@ async def explain_market_event(
 ) -> MarketSentinelExplainResponse:
     """Explain and validate a candidate market event through LangGraph."""
     return await service.explain_candidate_event(request)
+
+
+@router.post("/briefing", response_model=MarketBriefingResponse)
+async def generate_briefing(
+    request: MarketBriefingRequest,
+    service: MarketSentinelAgentService = Depends(get_service),
+) -> MarketBriefingResponse:
+    """Generate a post-scan market briefing using historical memory."""
+    return await service.generate_briefing(request)
 
 
 @router.post("/lifecycle/evaluate", response_model=AlertLifecycleEvaluationResponse)
