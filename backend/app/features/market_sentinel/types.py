@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Iterable, Literal, Protocol
 
 AlertStatus = Literal["new", "investigating", "confirmed", "watching", "resolved"]
+CriticStatus = Literal["passed", "revised", "skipped", "max_revisions_reached"]
 
 
 @dataclass(frozen=True)
@@ -66,6 +67,9 @@ class AgentExplanationResult:
     por_que_importa: str
     confidence_score: float
     is_noise: bool
+    critic_status: CriticStatus
+    critic_feedback: str | None
+    critic_revision_count: int
 
 
 class AgentExplanationProvider(Protocol):

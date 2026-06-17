@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, Enum as SAEnum
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -30,6 +30,11 @@ class ScanRun(Base):
     noise_discarded: Mapped[int] = mapped_column(Integer, default=0)
     cooldown_suppressed: Mapped[int] = mapped_column(Integer, default=0)
     failed_tickers: Mapped[int] = mapped_column(Integer, default=0)
+
+    briefing_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    briefing_sector_patterns: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    briefing_standout_ticker: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    briefing_noise_warning: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     snapshots: Mapped[list["MarketSnapshot"]] = relationship(
         back_populates="scan_run",
@@ -75,6 +80,9 @@ class Alert(Base):
     por_que_importa: Mapped[str] = mapped_column(Text)
     confidence_score: Mapped[float] = mapped_column(Float)
     has_news_support: Mapped[bool] = mapped_column(Boolean, default=False)
+    critic_status: Mapped[str] = mapped_column(String(32), default="skipped")
+    critic_feedback: Mapped[str | None] = mapped_column(Text, nullable=True)
+    critic_revision_count: Mapped[int] = mapped_column(Integer, default=0)
     status: Mapped[str] = mapped_column(String(32), default="new", index=True)
     status_updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, index=True)

@@ -39,9 +39,20 @@ class FakeNewsProvider:
 
 
 class FakeAgentsClient:
-    def __init__(self, *, is_noise: bool = False, confidence_score: float = 0.8) -> None:
+    def __init__(
+        self,
+        *,
+        is_noise: bool = False,
+        confidence_score: float = 0.8,
+        critic_status: str = "skipped",
+        critic_feedback: str | None = None,
+        critic_revision_count: int = 0,
+    ) -> None:
         self.is_noise = is_noise
         self.confidence_score = confidence_score
+        self.critic_status = critic_status
+        self.critic_feedback = critic_feedback
+        self.critic_revision_count = critic_revision_count
 
     def explain_event(
         self,
@@ -58,6 +69,9 @@ class FakeAgentsClient:
             por_que_importa="Escenario util para validar el pipeline.",
             confidence_score=self.confidence_score,
             is_noise=self.is_noise,
+            critic_status=self.critic_status,
+            critic_feedback=self.critic_feedback,
+            critic_revision_count=self.critic_revision_count,
         )
 
 
@@ -100,6 +114,8 @@ def test_run_scan_persists_alert_without_news(monkeypatch) -> None:
     assert response.scan_run.threshold_candidates == 1
     assert response.scan_run.signals_reviewed == 1
     assert response.alerts[0].has_news_support is False
+    assert response.alerts[0].critic_status == "skipped"
+    assert response.alerts[0].critic_revision_count == 0
 
 
 def test_run_scan_marks_news_supported_alert(monkeypatch) -> None:
@@ -136,15 +152,23 @@ def test_run_scan_marks_news_supported_alert(monkeypatch) -> None:
             ]
         ),
         news_provider=FakeNewsProvider(news_items),
-        agents_client=FakeAgentsClient(confidence_score=0.95),
+        agents_client=FakeAgentsClient(
+            confidence_score=0.95,
+            critic_status="revised",
+            critic_feedback="Explica mejor el impacto de la noticia.",
+            critic_revision_count=2,
+        ),
     )
 
     response = service.run_scan()
     detail = service.get_alert(alert_id=response.alerts[0].id)
 
     assert response.alerts[0].has_news_support is True
+    assert response.alerts[0].critic_status == "revised"
+    assert response.alerts[0].critic_revision_count == 2
     assert len(detail.news_items) == 1
     assert detail.confidence_score == 0.95
+    assert detail.critic_feedback == "Explica mejor el impacto de la noticia."
 
 
 def test_run_scan_skips_noise_events(monkeypatch) -> None:

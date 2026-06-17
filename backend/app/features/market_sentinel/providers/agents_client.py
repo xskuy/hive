@@ -7,7 +7,10 @@ from urllib.parse import urlparse, urlunparse
 import httpx
 
 from app.features.market_sentinel.models import Alert
-from app.features.market_sentinel.schemas import AlertLifecycleEvaluationResponse
+from app.features.market_sentinel.schemas import (
+    AlertLifecycleEvaluationResponse,
+    ScanBriefing,
+)
 from app.features.market_sentinel.types import (
     AgentExplanationResult,
     MarketSignal,
@@ -18,6 +21,7 @@ from app.features.market_sentinel.types import (
 logger = logging.getLogger(__name__)
 MARKET_SENTINEL_EXPLAIN_PATH = "/api/market-sentinel/explain"
 MARKET_SENTINEL_LIFECYCLE_PATH = "/api/market-sentinel/lifecycle/evaluate"
+MARKET_SENTINEL_BRIEFING_PATH = "/api/market-sentinel/briefing"
 LOCAL_DISCOVERY_PORTS = tuple(range(8000, 8011))
 
 
@@ -119,6 +123,44 @@ class MarketSentinelAgentsClient:
             response.raise_for_status()
             return AlertLifecycleEvaluationResponse.model_validate(response.json())
 
+    def generate_briefing(
+        self,
+        *,
+        scan_run_id: int,
+        alerts: list[Alert],
+    ) -> ScanBriefing:
+        """Call the agents service to generate a post-scan briefing."""
+        payload = {
+            "scan_run_id": scan_run_id,
+            "alerts": [
+                {
+                    "alert_id": a.id,
+                    "ticker": a.ticker,
+                    "company_name": a.company_name,
+                    "event_type": a.event_type,
+                    "confidence_score": a.confidence_score,
+                    "has_news_support": a.has_news_support,
+                    "que_paso": a.que_paso,
+                    "is_noise": False,
+                }
+                for a in alerts
+            ],
+        }
+        resolved_base_url = self._resolve_base_url()
+        with httpx.Client(timeout=self.timeout_seconds) as client:
+            response = client.post(
+                f"{resolved_base_url}{MARKET_SENTINEL_BRIEFING_PATH}", json=payload
+            )
+            response.raise_for_status()
+            data = response.json()
+
+        return ScanBriefing(
+            briefing=data["briefing"],
+            sector_patterns=data.get("sector_patterns", []),
+            standout_ticker=data.get("standout_ticker"),
+            noise_warning=data.get("noise_warning"),
+        )
+
     def _post_explanation(
         self,
         *,
@@ -139,6 +181,9 @@ class MarketSentinelAgentsClient:
             por_que_importa=data["por_que_importa"],
             confidence_score=float(data["confidence_score"]),
             is_noise=bool(data["is_noise"]),
+            critic_status=str(data.get("critic_status", "skipped")),
+            critic_feedback=data.get("critic_feedback") or None,
+            critic_revision_count=int(data.get("critic_revision_count", 0)),
         )
 
     def _resolve_base_url(self) -> str:
@@ -251,4 +296,7 @@ class MarketSentinelAgentsClient:
             por_que_importa=importance,
             confidence_score=baseline_confidence_score,
             is_noise=False,
+            critic_status="skipped",
+            critic_feedback=None,
+            critic_revision_count=0,
         )
